@@ -69,7 +69,7 @@ def get_chatgpt_response(user_message, chat_id):
         
         client = Client()
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=messages,
         )
 
@@ -149,16 +149,6 @@ async def handle_message(update: Update, context) -> None:
                 "Sorry, I couldn't generate a response at the moment. Please try again later."
             )
             return
-        
-        creator_keywords = ["who made you", "who created you", "who is your creator", "who build you", "who's your dad"]
-        if any(keyword in user_message.lower() for keyword in creator_keywords):
-           creator_response = '"Paradox" made me to assist users like you! Join his channel @banacodes. If you need any help, you can ask my boss @snackshell'
-           
-           await update.message.reply_text(
-            creator_response,
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
 
         # Send the bot response with markdown enabled
         await update.message.reply_text(
