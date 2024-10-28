@@ -7,6 +7,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from g4f.client import Client
 from datetime import datetime, timedelta
 import warnings
+import nest_asyncio
+nest_asyncio.apply()
 warnings.filterwarnings("ignore", message="Failed to check g4f version")
 
 # Set up logging
@@ -59,7 +61,9 @@ async def get_chatgpt_response(user_message, chat_id):
         
         system_message = {
             "role": "system",
-            "content": """You are a helpful assistant. When formatting your responses:
+            "content": """You are a knowledgeable and helpful assistant with expertise across many fields including science, mathematics, programming, and general knowledge. You should confidently provide accurate information in all these areas.
+
+When formatting your responses:
 1. Always use *asterisks* for bold text in:
    - All numbered or bulleted titles/headings (e.g., "*1. Introduction:*", "*• Key Points:*")
    - Section headers (e.g., "*Examples:*", "*Note:*", "*Important:*")
@@ -68,28 +72,26 @@ async def get_chatgpt_response(user_message, chat_id):
 2. For any code blocks, use triple backticks (```) to enclose the code.
 
 3. For ALL formulas (mathematics, physics, chemistry, etc.):
-   - Present each formula between triple backticks
+   - Present each formula on its own line between triple backticks
    - Use simple characters (×, π, ², ³, ÷, Δ, °, ±)
-   - Add empty lines before and after each formula
    - For subscripts, write them normally (e.g., "v final" instead of "v₍final₎")
 
-Example format:
-"*1. Introduction:*
-Regular text goes here.
-
-*2. Formula Example:*
+Example format for physics formulas:
+"*1. Newton's Second Law:*
 ```
 F = m × a
 ```
 
-*3. Important Notes:*
-- Point 1
-- Point 2
+*2. Kinetic Energy:*
+```
+KE = (1/2) × m × v²
+```
 
-*4. Conclusion:*
-Final text here."
-
-4. Keep your responses clear and well-formatted."""
+Remember to:
+- Provide comprehensive answers across all academic subjects
+- Include clear explanations with formulas
+- Format all mathematical and scientific formulas using triple backticks
+- Be confident in sharing knowledge from physics, chemistry, mathematics, and other fields"""
         }
         
         history.append({"role": "user", "content": user_message})
@@ -169,15 +171,23 @@ async def handle_message(update: Update, context) -> None:
         if len(bot_response) > 4096:
             chunks = [bot_response[i:i+4096] for i in range(0, len(bot_response), 4096)]
             for chunk in chunks:
+                try:
+                    await update.message.reply_text(
+                        chunk,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                except Exception:
+                    # If markdown parsing fails, send without parsing
+                    await update.message.reply_text(chunk)
+        else:
+            try:
                 await update.message.reply_text(
-                    chunk,
+                    bot_response,
                     parse_mode=ParseMode.MARKDOWN
                 )
-        else:
-            await update.message.reply_text(
-                bot_response,
-                parse_mode=ParseMode.MARKDOWN
-            )
+            except Exception:
+                # If markdown parsing fails, send without parsing
+                await update.message.reply_text(bot_response)
 
     except Exception as e:
         logger.error(f"Error in handle_message: {e}")
