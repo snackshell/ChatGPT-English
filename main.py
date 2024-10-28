@@ -5,6 +5,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 from g4f.client import Client
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings("ignore", message="Failed to check g4f version")
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -50,51 +53,61 @@ Welcome to the Banacodes Bot! Here's what you can do:
 chat_history = {}
 
 # ChatGPT API integration with memory
-def get_chatgpt_response(user_message, chat_id):
+async def get_chatgpt_response(user_message, chat_id):
     try:
-        # Retrieve the chat history for the current chat
         history = chat_history.get(chat_id, [])
         
-        # Add system message to handle markdown
         system_message = {
             "role": "system",
-            "content": "When formatting responses, use markdown syntax. For titles and important points, use *bold* (asterisks) instead of **bold**. For example: *Important Title* instead of **Important Title**."
+            "content": """You are a helpful assistant. When formatting your responses:
+1. Always use *asterisks* for bold text in:
+   - All numbered or bulleted titles/headings (e.g., "*1. Introduction:*", "*• Key Points:*")
+   - Section headers (e.g., "*Examples:*", "*Note:*", "*Important:*")
+   - Category names (e.g., "*Basic Syntax:*", "*Method 1:*")
+
+2. For any code blocks, use triple backticks (```) to enclose the code.
+
+3. For ALL formulas (mathematics, physics, chemistry, etc.):
+   - Present each formula between triple backticks
+   - Use simple characters (×, π, ², ³, ÷, Δ, °, ±)
+   - Add empty lines before and after each formula
+   - For subscripts, write them normally (e.g., "v final" instead of "v₍final₎")
+
+Example format:
+"*1. Introduction:*
+Regular text goes here.
+
+*2. Formula Example:*
+```
+F = m × a
+```
+
+*3. Important Notes:*
+- Point 1
+- Point 2
+
+*4. Conclusion:*
+Final text here."
+
+4. Keep your responses clear and well-formatted."""
         }
         
-        # Add the new user message to the history
         history.append({"role": "user", "content": user_message})
-        
-        # Include system message in the API call
         messages = [system_message] + history
         
         client = Client()
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=messages,
+            messages=messages
         )
-
-        if isinstance(response, str):
-            try:
-                parsed_response = json.loads(response)
-                if 'choices' in parsed_response and len(parsed_response['choices']) > 0:
-                    bot_message = parsed_response['choices'][0]['message']['content']
-                    # Add the bot's response to the history
-                    history.append({"role": "assistant", "content": bot_message})
-                    # Update the chat history
-                    chat_history[chat_id] = history
-                    return bot_message
-            except json.JSONDecodeError:
-                logger.error("Failed to parse response as JSON")
         
-        elif hasattr(response, 'choices') and len(response.choices) > 0:
+        if response and hasattr(response, 'choices') and len(response.choices) > 0:
             bot_message = response.choices[0].message.content
-            # Add the bot's response to the history
             history.append({"role": "assistant", "content": bot_message})
-            # Update the chat history
             chat_history[chat_id] = history
             return bot_message
-
-        return "Sorry, I couldn't process the response properly."
+            
+        return "Sorry, I couldn't generate a response. Please try again."
 
     except Exception as e:
         logger.error(f"Error while communicating with ChatGPT API: {e}")
@@ -143,18 +156,28 @@ async def handle_message(update: Update, context) -> None:
     logger.info(f"Received message: {user_message} from chat_id: {chat_id}")
 
     try:
-        bot_response = get_chatgpt_response(user_message, chat_id)
+        await update.message.chat.send_action(action="typing")
+        
+        bot_response = await get_chatgpt_response(user_message, chat_id)
         if not bot_response:
             await update.message.reply_text(
                 "Sorry, I couldn't generate a response at the moment. Please try again later."
             )
             return
 
-        # Send the bot response with markdown enabled
-        await update.message.reply_text(
-            bot_response,
-            parse_mode=ParseMode.MARKDOWN
-        )
+        # Split long messages if they exceed Telegram's limit
+        if len(bot_response) > 4096:
+            chunks = [bot_response[i:i+4096] for i in range(0, len(bot_response), 4096)]
+            for chunk in chunks:
+                await update.message.reply_text(
+                    chunk,
+                    parse_mode=ParseMode.MARKDOWN
+                )
+        else:
+            await update.message.reply_text(
+                bot_response,
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     except Exception as e:
         logger.error(f"Error in handle_message: {e}")
