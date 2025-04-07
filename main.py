@@ -201,7 +201,7 @@ async def error_handler(update: Update, context) -> None:
 
 # Main function to run the bot
 if __name__ == '__main__':
-    TELEGRAM_BOT_TOKEN = '7838545272:AAE8XbBECd0YufTeT6Rxz50UWeIU7zM4EMg'
+    TELEGRAM_BOT_TOKEN = 'BOT_TOKEN_FOM_BOT_FATHER'
 
     request = HTTPXRequest(read_timeout=60, connect_timeout=60)
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).request(request).build()
